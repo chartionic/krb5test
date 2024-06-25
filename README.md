@@ -46,10 +46,14 @@ The Realm name used is also available from the KDC instance:
 kdc.Realm
 ```
 
-You can also customize the mock KDC by modifying the global variables below.
+You can also customize the mock KDC by `Option` like below code:
+
 ```golang
-ServerEncType = "aes256-cts-hmac-sha1-96" // encrypt type supported in KDC
-ServerAddr    = "127.0.0.1:0"             // server address of KDC
-ServerRealm   = "TEST.REALM.COM"          // Realm of KDC
-ServerDomain  = "test.realm.com"          // Domain of KDC
+kdc, err := NewKDC(
+    p, l,
+    WithEncType("aes256-cts-hmac-sha1-96"), // customize encrypt type supported in mock KDC
+    WithSrvAddr("127.0.0.1:0"),             // customize server addr of mock KDC
+    WithRealm("TEST.REALM.COM"),            // customize realm of mock KDC
+    WithDomain("test.realm.com"),           // customize domain of mock KDC
+)
 ```
