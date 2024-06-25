@@ -28,12 +28,45 @@ import (
 	"github.com/jcmturner/gokrb5/v8/types"
 )
 
-var (
-	ServerEncType = "aes256-cts-hmac-sha1-96" // encrypt type supported in KDC
-	ServerAddr    = "127.0.0.1:0"             // server address of KDC
-	ServerRealm   = "TEST.REALM.COM"          // Realm of KDC
-	ServerDomain  = "test.realm.com"          // Domain of KDC
+const (
+	DEFAULT_ENC_TYPE = "aes256-cts-hmac-sha1-96" // default encrypt type supported in KDC
+	DEFAULT_ADDR     = "127.0.0.1:0"             // default server address of KDC
+	DEFAULT_REALM    = "TEST.REALM.COM"          // default Realm of KDC
+	DEFAULT_DOMAIN   = "test.realm.com"          // default Domain of KDC
 )
+
+type KDCOption = func(*kdcConfig)
+
+func WithEncType(encType string) KDCOption {
+	return func(kc *kdcConfig) {
+		kc.encType = encType
+	}
+}
+
+func WithSrvAddr(srvAddr string) KDCOption {
+	return func(kc *kdcConfig) {
+		kc.srvAddr = srvAddr
+	}
+}
+
+func WithRealm(realm string) KDCOption {
+	return func(kc *kdcConfig) {
+		kc.realm = realm
+	}
+}
+
+func WithDomain(domain string) KDCOption {
+	return func(kc *kdcConfig) {
+		kc.domain = domain
+	}
+}
+
+type kdcConfig struct {
+	encType string
+	srvAddr string
+	realm   string
+	domain  string
+}
 
 type KDC struct {
 	Realm      string
@@ -58,9 +91,20 @@ type PrincipalDetails struct {
 	Client   *client.Client
 }
 
-func NewKDC(principals map[string][]string, l *log.Logger) (*KDC, error) {
+func NewKDC(principals map[string][]string, l *log.Logger, opts ...KDCOption) (*KDC, error) {
+	kc := &kdcConfig{
+		srvAddr: DEFAULT_ADDR,
+		encType: DEFAULT_ENC_TYPE,
+		realm:   DEFAULT_REALM,
+		domain:  DEFAULT_DOMAIN,
+	}
+
+	for _, opt := range opts {
+		opt(kc)
+	}
+
 	kdc := new(KDC)
-	kdc.Realm = strings.ToUpper(ServerRealm)
+	kdc.Realm = strings.ToUpper(kc.realm)
 	kdc.Logger = l
 	kdc.errChan = make(chan error, 1)
 	kdc.udpClose = make(chan interface{})
@@ -78,7 +122,7 @@ func NewKDC(principals map[string][]string, l *log.Logger) (*KDC, error) {
 	}
 
 	var err error
-	kdc.TCPListener, err = net.Listen("tcp", ServerAddr)
+	kdc.TCPListener, err = net.Listen("tcp", kc.srvAddr)
 	if err != nil {
 		return nil, fmt.Errorf("could not create TCP listener: %v", err)
 	}
@@ -89,23 +133,23 @@ func NewKDC(principals map[string][]string, l *log.Logger) (*KDC, error) {
 
 	// Generate the krb5 config object
 	kdc.KRB5Conf = config.New()
-	encTypeID := etypeID.ETypesByName[ServerEncType]
-	kdc.KRB5Conf.LibDefaults.DefaultTGSEnctypes = []string{ServerEncType}
+	encTypeID := etypeID.ETypesByName[kc.encType]
+	kdc.KRB5Conf.LibDefaults.DefaultTGSEnctypes = []string{kc.encType}
 	kdc.KRB5Conf.LibDefaults.DefaultTGSEnctypeIDs = []int32{encTypeID}
-	kdc.KRB5Conf.LibDefaults.DefaultTktEnctypes = []string{ServerEncType}
+	kdc.KRB5Conf.LibDefaults.DefaultTktEnctypes = []string{kc.encType}
 	kdc.KRB5Conf.LibDefaults.DefaultTktEnctypeIDs = []int32{encTypeID}
-	kdc.KRB5Conf.LibDefaults.PermittedEnctypes = []string{ServerEncType}
+	kdc.KRB5Conf.LibDefaults.PermittedEnctypes = []string{kc.encType}
 	kdc.KRB5Conf.LibDefaults.PermittedEnctypeIDs = []int32{encTypeID}
 	kdc.KRB5Conf.LibDefaults.PreferredPreauthTypes = []int{int(encTypeID)}
 	kdc.KRB5Conf.LibDefaults.DefaultRealm = kdc.Realm
 	kdc.KRB5Conf.LibDefaults.DNSLookupKDC = false
 	kdc.KRB5Conf.LibDefaults.DNSLookupRealm = false
 
-	kdc.KRB5Conf.DomainRealm[strings.ToLower(ServerRealm)] = kdc.Realm
+	kdc.KRB5Conf.DomainRealm[strings.ToLower(kc.realm)] = kdc.Realm
 
 	kdc.KRB5Conf.Realms = append(kdc.KRB5Conf.Realms, config.Realm{
 		Realm:         kdc.Realm,
-		DefaultDomain: ServerDomain,
+		DefaultDomain: kc.domain,
 		KDC:           []string{kdc.TCPListener.Addr().String()},
 	})
 
@@ -278,7 +322,7 @@ func (k *KDC) goServeUDP() {
 	}()
 }
 
-//msgType returns the kerberos message type ID for the bytes received
+// msgType returns the kerberos message type ID for the bytes received
 func mType(b []byte) (int, error) {
 	var m asn1.RawValue
 	_, err := asn1.Unmarshal(b, &m)

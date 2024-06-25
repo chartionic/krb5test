@@ -16,7 +16,13 @@ func TestNewKDC(t *testing.T) {
 	p := make(map[string][]string)
 	p["testuser1"] = []string{"testgroup1"}
 	p["HTTP/host.test.realm.com"] = []string{}
-	kdc, err := NewKDC(p, l)
+	kdc, err := NewKDC(
+		p, l,
+		WithEncType(DEFAULT_ENC_TYPE),
+		WithSrvAddr(DEFAULT_ADDR),
+		WithRealm(DEFAULT_REALM),
+		WithDomain(DEFAULT_DOMAIN),
+	)
 	if err != nil {
 		t.Fatalf("could not create test KDC: %v", err)
 	}
