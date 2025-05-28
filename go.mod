@@ -1,4 +1,4 @@
-module github.com/jcmturner/krb5test
+module github.com/chartionic/krb5test
 
 go 1.14
 
